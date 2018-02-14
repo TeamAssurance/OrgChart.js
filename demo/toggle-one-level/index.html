@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Organization Chart Class</title>
+
+    <link rel="icon" type="image/x-icon" href="../img/logo.jpg">
+    <link rel="stylesheet" href="../css/vendor/font-awesome.min.css">
+    <link rel="stylesheet" href="../css/orgchart.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+      #chart-container{
+        height: auto;
+        border: none;
+      }
+      .orgchart{
+        background: none;
+      }
+      .orgchart .childrenPlaceholder{
+        visibility: hidden;
+        height: 0;
+        overflow: hidden;
+        padding: 0;
+        border: 0;
+        display: block;
+      }
+      .orgchart .verticalNodes>td>ul{
+        padding: 0px;
+      }
+      .orgchart .verticalNodes ul>li {
+        text-align: center;
+      }
+      
+      .orgchart .verticalNodes>td>ul>li:first-child::before,
+      .orgchart .verticalNodes>td>ul>li:first-child::after,
+      .orgchart .verticalNodes>td>ul>li:before, 
+      .orgchart .verticalNodes>td>ul>li:after {
+        width: 0px;
+        left: 0;
+        right: 0;
+        margin: 0 auto;
+      }
+      .orgchart .verticalNodes ul:first-child{
+        margin:0;
+      }
+      .orgchart .verticalNodes ul>li::before{
+        display: none;
+      }
+      .orgchart .verticalNodes ul>li::after {
+        position: relative;
+        display: block;
+      }
+      .orgchart .verticalNodes ul>li::after {
+        height: 40px;
+      }
+      .orgchart .verticalNodes ul>li:first-child::after {
+        top: 0px;
+      }
+      .orgchart .ghostRow.active {
+        height: 230px;
+        position: relative;
+        display: table-row;
+      }
+      .orgchart .ghostRow.active:before{
+        height: 230px;
+      }
+    </style>
+</head>
+<body>
+  <div id="chart-container"></div>
+  <!-- <script type="text/javascript" src="../js/bundle.js"></script> -->
+  <script type="text/javascript" src="bundle.js"></script>
+  </body>
+</html>

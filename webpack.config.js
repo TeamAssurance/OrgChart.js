@@ -1,6 +1,7 @@
 module.exports = {
   entry: {
     'ajax-datasource/bundle': './demo/ajax-datasource/scripts.js',
+    'toggle-one-level/bundle': './demo/toggle-one-level/scripts.js',
     'color-coded/bundle': './demo/color-coded/scripts.js',
     'direction/bundle-b2t': './demo/direction/b2t.js',
     'direction/bundle-l2r': './demo/direction/l2r.js',

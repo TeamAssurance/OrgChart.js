@@ -1,0 +1,12 @@
+# Horizontal Arrows eliminated.
+# Trailing spaces not allowed fixed eslint errors.
+# Vertical Arrows class configurable.
+# Horizontal Arrows can be hidden.
+# Vertical Arrows can be hidden.
+# Bidirectional control all parent only goals.
+# Since parent goals are vertically positioned, switch back the layout to horizontal after that.
+# dont hide siblings have a simpler flow
+# Vertical parents not hiding
+# don't hide childrenPlaceholder lines
+# Toggle all parents of every chart instantiated
+# Add blank space to keep child goals in one line.

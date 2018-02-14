@@ -27,6 +27,10 @@
   display: none;
 }
 
+.orgchart>table {
+  display: inline-table;
+}
+
 .orgchart div,
 .orgchart div::before,
 .orgchart div::after {
@@ -499,4 +503,27 @@
 
 .orgchart.l2r .node.slide-left, .orgchart.r2l .node.slide-left {
   left: -40px;
+}
+
+.orgchart .ghostRow{
+  display: none;
+}
+
+.orgchart .ghostRow.active {
+  height: 150px;
+  position: relative;
+  display: table-row;
+}
+
+.orgchart .ghostRow.active:before {
+  content: "";
+  border: 1px dashed #e17572;
+  position: absolute;
+  display: block;
+  left: 0;
+  top: 0;
+  height: 150px;
+  right: 0;
+  margin: auto;
+  width: 0;
 }

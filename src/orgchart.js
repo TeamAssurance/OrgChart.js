@@ -1,6 +1,7 @@
 export default class OrgChart {
   constructor(options) {
     this._name = 'OrgChart';
+    this.ghostLines = [];
     Promise.prototype.finally = function (callback) {
       let P = this.constructor;
 
@@ -23,7 +24,10 @@ export default class OrgChart {
         'draggable': false,
         'direction': 't2b',
         'pan': false,
-        'zoom': false
+        'zoom': false,
+        'hideOnlyParent': true,
+        'hideSiblings': true,
+        'animateLines': true
       },
       opts = Object.assign(defaultOptions, options),
       data = opts.data,
@@ -96,6 +100,9 @@ export default class OrgChart {
   }
   _closest(el, fn) {
     return el && ((fn(el) && el !== this.chart) ? el : this._closest(el.parentNode, fn));
+  }
+  _closestClass(el, cl, fn) {
+    return el && ((fn(el) && el.className.indexOf(cl) > -1) ? el : this._closestClass(el.nextElementSibling, cl, fn));
   }
   _siblings(el, expr) {
     return Array.from(el.parentNode.children).filter((child) => {
@@ -236,15 +243,24 @@ export default class OrgChart {
   }
   // whether the cursor is hovering over the node
   _isInAction(node) {
-    return node.querySelector(':scope > .edge').className.indexOf('fa-') > -1;
+    let arrow;
+    const edge = node.querySelector(':scope > .edge');
+    
+    if (edge) {
+      arrow = node.querySelector(':scope > .edge').className.indexOf('fa-') > -1;
+      arrow = node.querySelector(':scope > .edge').className.indexOf('arrow-') > -1;
+    }
+
+    return arrow;
   }
   // detect the exist/display state of related node
-  _getNodeState(node, relation) {
+  _getNodeState(node, relation, selector) {
     let criteria,
       state = { 'exist': false, 'visible': false };
 
     if (relation === 'parent') {
       criteria = this._closest(node, (el) => el.classList && el.classList.contains('nodes'));
+      
       if (criteria) {
         state.exist = true;
       }
@@ -253,6 +269,9 @@ export default class OrgChart {
       }
     } else if (relation === 'children') {
       criteria = this._closest(node, (el) => el.nodeName === 'TR').nextElementSibling;
+      if (selector) {
+        criteria = this._closestClass(criteria, selector, (el) => el.nodeName === 'TR');
+      }
       if (criteria) {
         state.exist = true;
       }
@@ -326,16 +345,30 @@ export default class OrgChart {
   }
   _hoverNode(event) {
     let node = event.target,
+      that = this,
+      opts = that.options,
       flag = false,
       topEdge = node.querySelector(':scope > .topEdge'),
       bottomEdge = node.querySelector(':scope > .bottomEdge'),
-      leftEdge = node.querySelector(':scope > .leftEdge');
+      leftEdge = node.querySelector(':scope > .leftEdge'),
+      extraClasses = [],
+      topEdgeClasses = null;
+
+    if (opts.topEdgeArrow && opts.topEdgeArrow.classes) {
+      topEdgeClasses = opts.topEdgeArrow.classes;
+      extraClasses = extraClasses.concat([topEdgeClasses.open, topEdgeClasses.close]);
+    }
 
     if (event.type === 'mouseenter') {
       if (topEdge) {
         flag = this._getNodeState(node, 'parent').visible;
+        // if (topEdgeClasses) {
+        //   topEdge.classList.toggle(topEdgeClasses.open, !flag);
+        //   topEdge.classList.toggle(topEdgeClasses.close, flag);
+        // } else {
         topEdge.classList.toggle('fa-chevron-up', !flag);
         topEdge.classList.toggle('fa-chevron-down', flag);
+        // }
       }
       if (bottomEdge) {
         flag = this._getNodeState(node, 'children').visible;
@@ -348,6 +381,9 @@ export default class OrgChart {
     } else {
       Array.from(node.querySelectorAll(':scope > .edge')).forEach((el) => {
         el.classList.remove('fa-chevron-up', 'fa-chevron-down', 'fa-chevron-right', 'fa-chevron-left');
+        extraClasses.forEach((item) => {
+          el.classList.remove(item);
+        });
       });
     }
   }
@@ -405,6 +441,10 @@ export default class OrgChart {
   }
   // show the parent node of the specified node
   showParent(node) {
+    if (!node) {
+      console.log('no node found');
+      return;
+    }
     // just show only one superior level
     let temp = this._prevAll(this._closest(node, (el) => el.classList.contains('nodes')));
 
@@ -412,7 +452,15 @@ export default class OrgChart {
     // just show only one line
     this._addClass(Array(temp[0].children).slice(1, -1), 'hidden');
     // show parent node with animation
-    let parent = temp[2].querySelector('.node');
+    const nodeRow = temp.filter(el => el && !el.className)[0];
+    const ghost = temp.filter(el => el && el.className && el.className.indexOf('ghostRow') > -1);
+    let parent = nodeRow.querySelector('.node'),
+      data = JSON.parse(node.getAttribute('data-source'));
+
+    // show the sibling node of parent
+    if (data.hideParentSiblings) {
+      this.showSiblings(parent);
+    }
 
     this._one(parent, 'transitionend', function () {
       parent.classList.remove('slide');
@@ -421,8 +469,15 @@ export default class OrgChart {
       }
     }, this);
     this._repaint(parent);
+    this._removeClass(ghost, 'active');
     parent.classList.add('slide');
     parent.classList.remove('slide-down');
+
+    // show parent lines
+    if (parent && this.options.hideOnlyParent) {
+      this.showLines(parent);
+    }
+
   }
   // show the sibling nodes of the specified node
   showSiblings(node, direction) {
@@ -527,14 +582,19 @@ export default class OrgChart {
       lines.push(temp.previousElementSibling);
     }
     lines = [...new Set(lines)];
-    lines.forEach(function (line) {
-      line.style.visibility = 'hidden';
-    });
 
-    this._one(animatedNodes[0], 'transitionend', function (event) {
+    if (this.options.animateLines) {
       lines.forEach(function (line) {
-        line.removeAttribute('style');
+        line.style.visibility = 'hidden';
       });
+    }
+    
+    this._one(animatedNodes[0], 'transitionend', function (event) {
+      if (this.options.animateLines) {
+        lines.forEach(function (line) {
+          line.removeAttribute('style');
+        });
+      }
       let sibs = [];
 
       if (direction) {
@@ -546,13 +606,15 @@ export default class OrgChart {
       } else {
         sibs = this._siblings(nodeContainer);
       }
-      let temp = Array.from(this._closest(nodeContainer, function (el) {
-        return el.classList.contains('nodes');
-      }).previousElementSibling.querySelectorAll(':scope > :not(.hidden)'));
+      // commented unused lines
+      // let temp = Array.from(this._closest(nodeContainer, function (el) {
+      //   return el.classList.contains('nodes');
+      // }).previousElementSibling.querySelectorAll(':scope > :not(.hidden)'));
 
-      let someLines = temp.slice(1, direction ? sibs.length * 2 + 1 : -1);
+      // let someLines = temp.slice(1, direction ? sibs.length * 2 + 1 : -1);
 
-      this._addClass(someLines, 'hidden');
+      // this._addClass(someLines, 'hidden');
+      // console.log(someLines);
       this._removeClass(animatedNodes, 'slide');
       sibs.forEach((sib) => {
         Array.from(sib.querySelectorAll('.node')).slice(1).forEach((node) => {
@@ -568,7 +630,6 @@ export default class OrgChart {
         this._addClass(Array.from(sib.querySelectorAll('.verticalNodes')), 'hidden');
       });
       this._addClass(sibs, 'hidden');
-
       if (this._isInAction(node)) {
         this._switchHorizontalArrow(node);
       }
@@ -576,37 +637,77 @@ export default class OrgChart {
   }
   // recursively hide the ancestor node and sibling nodes of the specified node
   hideParent(node) {
-    let temp = Array.from(this._closest(node, function (el) {
-      return el.classList.contains('nodes');
-    }).parentNode.children).slice(0, 3);
-
+    let data = JSON.parse(node.getAttribute('data-source')),
+      opts = this.options,
+      temp = Array.from(this._closest(node, function (el) {
+        return el.classList.contains('nodes');
+      }).parentNode.children).slice(0, 4);
+    
     if (temp[0].querySelector('.spinner')) {
       this.chart.dataset.inAjax = false;
     }
     // hide the sibling nodes
-    if (this._getNodeState(node, 'siblings').visible) {
+    if (this._getNodeState(node, 'siblings').visible && opts.hideSiblings) {
       this.hideSiblings(node);
     }
-    // hide the lines
-    let lines = temp.slice(1);
 
-    this._css(lines, 'visibility', 'hidden');
+    // hide the lines
+    let lines = temp.filter(el => el && el.className && el.className.indexOf('lines') > -1);
+
+    // this._css(lines, 'visibility', 'hidden');
     // hide the superior nodes with transition
     let parent = temp[0].querySelector('.node'),
       grandfatherVisible = this._getNodeState(parent, 'parent').visible;
+    
+    // hide the sibling node of parent
+    if (data.hideParentSiblings) {
+      this.hideSiblings(parent);
+    }
 
     if (parent && this._isVisible(parent)) {
       parent.classList.add('slide', 'slide-down');
       this._one(parent, 'transitionend', function () {
         parent.classList.remove('slide');
         this._removeAttr(lines, 'style');
-        this._addClass(temp, 'hidden');
+        if (parent && this.options.hideOnlyParent) {
+          this._addClass([temp[0]], 'hidden');
+        } else {
+          this._addClass(temp, 'hidden');
+        }
+        // console.log(temp);
       }, this);
     }
+
     // if the current node has the parent node, hide it recursively
-    if (parent && grandfatherVisible) {
+    if (parent && grandfatherVisible && !this.options.hideOnlyParent) {
       this.hideParent(parent);
     }
+
+    // hide parent lines
+    if (parent && this.options.hideOnlyParent && !data.showLines) {
+      this.hideLines(parent);
+    }
+
+    // hide own lines
+    if (this.options.hideOnlyParent) {
+      this._addClass(lines, 'hidden');
+    }
+  }
+  hideLines(node) {
+    let temp = Array.from(this._closest(node, function (el) {
+      return el.classList.contains('nodes');
+    }).parentNode.children);
+    let lines = temp.filter(el => el && el.className && el.className.indexOf('lines') > -1);
+    
+    this._addClass(lines, 'hidden');
+  }
+  showLines(node) {
+    let temp = Array.from(this._closest(node, function (el) {
+      return el.classList.contains('nodes');
+    }).parentNode.children);
+    let lines = temp.filter(el => el && el.className && el.className.indexOf('lines') > -1);
+
+    this._removeClass(lines, 'hidden');
   }
   // exposed method
   addParent(currentRoot, data) {
@@ -669,51 +770,70 @@ export default class OrgChart {
       topEdge = event.target,
       node = topEdge.parentNode,
       parentState = this._getNodeState(node, 'parent'),
-      opts = this.options;
+      opts = this.options,
+      data = JSON.parse(node.getAttribute('data-source'));
 
-    if (parentState.exist) {
-      let temp = this._closest(node, function (el) {
-        return el.classList.contains('nodes');
-      });
-      let parent = temp.parentNode.firstChild.querySelector('.node');
-
-      if (parent.classList.contains('slide')) { return; }
-      // hide the ancestor nodes and sibling nodes of the specified node
+    if (data.bidirectional) {
       if (parentState.visible) {
         this.hideParent(node);
         this._one(parent, 'transitionend', function () {
           if (this._isInAction(node)) {
             this._switchVerticalArrow(topEdge);
-            this._switchHorizontalArrow(node);
           }
         }, this);
+
+        this.hideGhost();
+
       } else { // show the ancestors and siblings
+        this.hideSiblingParent(node);
         this.showParent(node);
       }
     } else {
-      // load the new parent node of the specified node by ajax request
-      let nodeId = topEdge.parentNode.id;
-
-      // start up loading status
-      if (this._startLoading(topEdge, node)) {
-        // load new nodes
-        this._getJSON(typeof opts.ajaxURL.parent === 'function' ?
-          opts.ajaxURL.parent(node.dataset.source) : opts.ajaxURL.parent + nodeId)
-        .then(function (resp) {
-          if (that.chart.dataset.inAjax === 'true') {
-            if (Object.keys(resp).length) {
-              that.addParent(node, resp);
-            }
-          }
-        })
-        .catch(function (err) {
-          console.error('Failed to get parent node data.', err);
-        })
-        .finally(function () {
-          that._endLoading(topEdge, node);
+      if (parentState.exist) {
+        let temp = this._closest(node, function (el) {
+          return el.classList.contains('nodes');
         });
+        let parent = temp.parentNode.firstChild.querySelector('.node');
+  
+        if (parent.classList.contains('slide')) { return; }
+        // hide the ancestor nodes and sibling nodes of the specified node
+        if (parentState.visible) {
+          this.hideParent(node);
+          this._one(parent, 'transitionend', function () {
+            if (this._isInAction(node)) {
+              this._switchVerticalArrow(topEdge);
+              this._switchHorizontalArrow(node);
+            }
+          }, this);
+        } else { // show the ancestors and siblings
+          this.showParent(node);
+        }
+      } else {
+        // load the new parent node of the specified node by ajax request
+        let nodeId = topEdge.parentNode.id;
+  
+        // start up loading status
+        if (this._startLoading(topEdge, node)) {
+          // load new nodes
+          this._getJSON(typeof opts.ajaxURL.parent === 'function' ?
+            opts.ajaxURL.parent(node.dataset.source) : opts.ajaxURL.parent + nodeId)
+          .then(function (resp) {
+            if (that.chart.dataset.inAjax === 'true') {
+              if (Object.keys(resp).length) {
+                that.addParent(node, resp);
+              }
+            }
+          })
+          .catch(function (err) {
+            console.error('Failed to get parent node data.', err);
+          })
+          .finally(function () {
+            that._endLoading(topEdge, node);
+          });
+        }
       }
     }
+
   }
   // recursively hide the descendant nodes of the specified node
   hideChildren(node) {
@@ -759,6 +879,7 @@ export default class OrgChart {
     let that = this,
       temp = this._nextAll(node.parentNode.parentNode),
       descendants = [];
+    const nodes = temp.filter(el => el && el.className && el.className.indexOf('nodes') > -1);
 
     this._removeClass(temp, 'hidden');
     if (temp.some((el) => el.classList.contains('verticalNodes'))) {
@@ -768,7 +889,7 @@ export default class OrgChart {
         }));
       });
     } else {
-      Array.from(temp[2].children).forEach((el) => {
+      Array.from(nodes[0].children).forEach((el) => {
         Array.prototype.push.apply(descendants,
           Array.from(el.querySelector('tr').querySelectorAll('.node')).filter((el) => {
             return that._isVisible(el);
@@ -826,7 +947,7 @@ export default class OrgChart {
       opts = this.options,
       bottomEdge = event.target,
       node = bottomEdge.parentNode,
-      childrenState = this._getNodeState(node, 'children');
+      childrenState = this._getNodeState(node, 'children', 'lines');
 
     if (childrenState.exist) {
       let temp = this._closest(node, function (el) {
@@ -1352,6 +1473,7 @@ export default class OrgChart {
         nodeDiv.id = nodeData[opts.nodeId];
       }
       let inEdit = that.chart.dataset.inEdit,
+        hideParentSiblings = nodeData.hideParentSiblings ? ' hide-parent-siblings' : '',
         isHidden;
 
       if (inEdit) {
@@ -1359,7 +1481,8 @@ export default class OrgChart {
       } else {
         isHidden = level >= opts.depth ? ' slide-up' : '';
       }
-      nodeDiv.setAttribute('class', 'node ' + (nodeData.className || '') + isHidden);
+      
+      nodeDiv.setAttribute('class', 'node ' + (nodeData.className || '') + isHidden + hideParentSiblings);
       if (opts.draggable) {
         nodeDiv.setAttribute('draggable', true);
       }
@@ -1371,9 +1494,11 @@ export default class OrgChart {
         ${opts.nodeContent ? `<div class="content">${nodeData[opts.nodeContent]}</div>` : ''}
       `;
       // append 4 direction arrows or expand/collapse buttons
-      let flags = nodeData.relationship || '';
+      let flags = nodeData.relationship || '',
+        isVerticalNode = opts.verticalDepth && (level + 2) > opts.verticalDepth,
+        isHorizontalNode = !isVerticalNode || opts.verticalDepthEnd && (level + 2) > opts.verticalDepthEnd;
 
-      if (opts.verticalDepth && (level + 2) > opts.verticalDepth) {
+      if (isVerticalNode && !isHorizontalNode && !nodeData.disableDownward) {
         if ((level + 1) >= opts.verticalDepth && Number(flags.substr(2, 1))) {
           let toggleBtn = document.createElement('i'),
             icon = level + 1 >= opts.depth ? 'plus' : 'minus';
@@ -1382,13 +1507,13 @@ export default class OrgChart {
           nodeDiv.appendChild(toggleBtn);
         }
       } else {
-        if (Number(flags.substr(0, 1))) {
+        if (Number(flags.substr(0, 1)) && nodeData.bidirectional) {
           let topEdge = document.createElement('i');
 
           topEdge.setAttribute('class', 'edge verticalEdge topEdge fa');
           nodeDiv.appendChild(topEdge);
         }
-        if (Number(flags.substr(1, 1))) {
+        if (Number(flags.substr(1, 1) && opts.toggleSiblingsResp)) {
           let rightEdge = document.createElement('i'),
             leftEdge = document.createElement('i');
 
@@ -1397,7 +1522,7 @@ export default class OrgChart {
           leftEdge.setAttribute('class', 'edge horizontalEdge leftEdge fa');
           nodeDiv.appendChild(leftEdge);
         }
-        if (Number(flags.substr(2, 1))) {
+        if (Number(flags.substr(2, 1)) && !nodeData.disableDownward) {
           let bottomEdge = document.createElement('i'),
             symbol = document.createElement('i'),
             title = nodeDiv.querySelector(':scope > .title');
@@ -1427,25 +1552,42 @@ export default class OrgChart {
     });
   }
   buildHierarchy(appendTo, nodeData, level, callback) {
+    // console.log(level);
     // Construct the node
     let that = this,
       opts = this.options,
       nodeWrapper,
       childNodes = nodeData.children,
-      isVerticalNode = opts.verticalDepth && (level + 1) >= opts.verticalDepth;
+      isVerticalNode = opts.verticalDepth && (level + 1) >= opts.verticalDepth,
+      isHorizontalNode = !isVerticalNode || opts.verticalDepthEnd && (level + 1) >= opts.verticalDepthEnd;
 
     if (Object.keys(nodeData).length > 1) { // if nodeData has nested structure
-      nodeWrapper = isVerticalNode ? appendTo : document.createElement('table');
-      if (!isVerticalNode) {
+      nodeWrapper = !isHorizontalNode ? appendTo : document.createElement('table');
+      if (!isVerticalNode || isHorizontalNode) {
         appendTo.appendChild(nodeWrapper);
       }
       this._createNode(nodeData, level)
       .then(function (nodeDiv) {
-        if (isVerticalNode) {
-          nodeWrapper.insertBefore(nodeDiv, nodeWrapper.firstChild);
+        if (isVerticalNode && !isHorizontalNode) {
+          const isHidden = level + 1 >= opts.hiddenRow ? 'hidden' : '';
+          
+          if (nodeWrapper.tagName === "TABLE") {
+            let tr = document.createElement('tr');
+
+            tr.setAttribute('class', isHidden);
+            tr.innerHTML = `
+            <td ${childNodes ? `colspan="${childNodes.length * 2}"` : ''}>
+            </td>
+            `;
+            tr.children[0].appendChild(nodeDiv);
+            nodeWrapper.insertBefore(tr, nodeWrapper.children[0] ? nodeWrapper.children[0] : null);
+          } else {
+            nodeWrapper.setAttribute('class', isHidden);
+            nodeWrapper.insertBefore(nodeDiv, nodeWrapper.firstChild);
+          }
         } else {
           let tr = document.createElement('tr');
-
+          
           tr.innerHTML = `
             <td ${childNodes ? `colspan="${childNodes.length * 2}"` : ''}>
             </td>
@@ -1466,8 +1608,9 @@ export default class OrgChart {
       if (Object.keys(nodeData).length === 1) { // if nodeData is just an array
         nodeWrapper = appendTo;
       }
-      let isHidden,
+      let isHidden, isHiddenLine = "",
         isVerticalLayer = opts.verticalDepth && (level + 2) >= opts.verticalDepth,
+        isHorizontalLayer = !isVerticalLayer || opts.verticalDepthEnd && (level + 2) >= opts.verticalDepthEnd,
         inEdit = that.chart.dataset.inEdit;
 
       if (inEdit) {
@@ -1475,12 +1618,28 @@ export default class OrgChart {
       } else {
         isHidden = level + 1 >= opts.depth ? ' hidden' : '';
       }
-
+      
+      if (isVerticalNode && !isHorizontalNode) {
+        isHiddenLine = level + 1 >= opts.hiddenRow ? ' hidden' : '';
+        nodeWrapper = nodeWrapper.appendChild(document.createElement('table'));
+      }
+      
       // draw the line close to parent node
-      if (!isVerticalLayer) {
-        let tr = document.createElement('tr');
+      if (!isVerticalLayer || isHorizontalLayer) {
+        const tr = document.createElement('tr');
+        const ghostRow = document.createElement('tr');
 
-        tr.setAttribute('class', 'lines' + isHidden);
+        ghostRow.setAttribute('class', 'ghostRow');
+        ghostRow.innerHTML = `
+          <td colspan="${ childNodes.length * 2 }">
+            <div class="ghostLine"></div>
+          </td>
+        `;
+
+        this.ghostLines.push(ghostRow);
+        nodeWrapper.appendChild(ghostRow);
+
+        tr.setAttribute('class', 'lines' + isHidden + isHiddenLine);
         tr.innerHTML = `
           <td colspan="${ childNodes.length * 2 }">
             <div class="downLine"></div>
@@ -1491,7 +1650,7 @@ export default class OrgChart {
       // draw the lines close to children nodes
       let lineLayer = document.createElement('tr');
 
-      lineLayer.setAttribute('class', 'lines' + isHidden);
+      lineLayer.setAttribute('class', 'lines' + isHidden + isHiddenLine);
       lineLayer.innerHTML = `
         <td class="rightLine">&nbsp;</td>
         ${childNodes.slice(1).map(() => `
@@ -1502,7 +1661,7 @@ export default class OrgChart {
       `;
       let nodeLayer;
 
-      if (isVerticalLayer) {
+      if (isVerticalLayer && !isHorizontalLayer) {
         nodeLayer = document.createElement('ul');
         if (isHidden) {
           nodeLayer.classList.add(isHidden.trim());
@@ -1526,8 +1685,8 @@ export default class OrgChart {
       // recurse through children nodes
       childNodes.forEach((child) => {
         let nodeCell;
-
-        if (isVerticalLayer) {
+        
+        if (isVerticalLayer && !isHorizontalLayer) {
           nodeCell = document.createElement('li');
         } else {
           nodeCell = document.createElement('td');
@@ -1761,5 +1920,181 @@ export default class OrgChart {
         this._setChartScale(chart, -1);
       }
     }
+  }
+
+  findChild(element, className) {
+    let foundElement = null;
+
+    function recurse(element, className, found) {
+      for (let i = 0; i < element.childNodes.length && !found; i++) {
+        let el = element.childNodes[i];
+        let classes = el.className !== undefined ? el.className.split(" ") : [];
+
+        for (let j = 0, jl = classes.length; j < jl; j++) {
+          if (classes[j] === className) {
+            found = true;
+            foundElement = element.childNodes[i];
+            break;
+          }
+        }
+        if (found) {
+          break;
+        }
+        recurse(element.childNodes[i], className, found);
+      }
+    }
+    recurse(element, className, false);
+    return foundElement;
+  }
+  
+  findChilden(element, className) {
+    let foundElement = [];
+
+    function recurse(element, className, found) {
+      for (let i = 0; i < element.childNodes.length && !found; i++) {
+        let el = element.childNodes[i];
+        let classes = el.className !== undefined ? el.className.split(" ") : [];
+
+        for (let j = 0, jl = classes.length; j < jl; j++) {
+          if (classes[j] === className) {
+            // found = true;
+            foundElement.push(element.childNodes[i]);
+            break;
+          }
+        }
+        recurse(element.childNodes[i], className, found);
+      }
+    }
+    recurse(element, className, false);
+    return foundElement;
+  }
+
+  findParents(element, id, className, tagName) {
+    let el = element,
+      criteria = id ? 'id' : className ? 'className' : 'tagName',
+      parents = [];
+    
+    while (el) {
+      el = el.parentNode;
+
+      switch (criteria) {
+        case 'id':
+          // search for id
+          break;
+        case 'className':
+          // search for classNames
+          if (el && el.className && el.className.indexOf(className) > -1) {
+            parents.push(el);
+          }
+          break;
+        default:
+          if (el && el.nodeName === tagName.toUpperCase()) {
+            parents.push(el);
+          }
+          // search for tags
+      }
+    }
+
+    return parents;
+  }
+
+  findSiblings(element) {
+    const sibs = [];
+    let nextSib = element.nextSibling;
+    let prevSib = element.previousSibling;
+
+    while (prevSib) {
+      sibs.unshift(prevSib);
+      prevSib = prevSib.previousSibling;
+    }
+    while (nextSib) {
+      sibs.push(nextSib);
+      nextSib = nextSib.nextSibling;
+    }
+
+    return sibs;
+  }
+  hideSiblingParent(node) {
+    const verticalParentNode = this.findParents(node, null, 'verticalNodes')[0];
+    const parentNodeCell = this.findParents(verticalParentNode, null, null, 'td')[0];
+    const siblings = this.findSiblings(parentNodeCell);
+    const className = 'hide-parent-siblings';
+    const chartSibs = this.findSiblings(this.chart);
+
+    siblings.forEach(element => {
+      const child = this.findChild(element, className);
+
+      if (child) {
+        const parentNode = child.parentNode;
+        const parentState = this._getNodeState(parentNode, 'parent');
+        
+        if (parentState.visible) {
+          this.hideParent(child);
+        }
+        this.showGhost(child);
+      }
+    });
+
+    this.hideSiblingChartParents(chartSibs);
+  }
+
+  hideSiblingChartParents(siblings) {
+    const className = 'hide-parent-siblings';
+
+    siblings.forEach(element => {
+      const child = this.findChilden(element, className);
+
+      // console.log(child);
+      child.forEach(el => {
+        const parentNode = el.parentNode;
+        const parentState = this._getNodeState(parentNode, 'parent');
+        
+        if (parentState.visible) {
+          this.hideParent(el);
+        }
+        this.showGhost(el);
+      });
+    });
+  }
+  hideGhost() {
+    const lines = [];
+    let ghostLines = this.ghostLines;
+    const chartSibs = this.findSiblings(this.chart);
+    
+    chartSibs.forEach(element => {
+      const ghostRows = this.findChilden(element, 'ghostRow');
+      
+      ghostLines = ghostLines.concat(ghostRows);
+    });
+
+    let ghosts = ghostLines
+    .filter(el => {
+      const isActive = el && el.className && el.className.indexOf('active') > -1;
+      
+      if (isActive) {
+        const temp = this._siblings(el);
+        
+        temp.map(line => {
+          if (line && line.className && line.className.indexOf('lines') > -1) {
+            lines.push(line);
+          }
+        });
+
+      }
+      return isActive;
+    });
+    
+    this._removeClass(ghosts, 'active');
+    this._addClass(lines, 'hidden');
+  }
+  showGhost(node) {
+    let temp = Array.from(this._closest(node, function (el) {
+      return el.classList.contains('nodes');
+    }).parentNode.children);
+    const ghost = temp.filter(el => el && el.className && el.className.indexOf('ghostRow') > -1);
+    const lines = temp.filter(el => el && el.className && el.className.indexOf('lines') > -1);
+
+    this._addClass(ghost, 'active');
+    this._removeClass(lines, 'hidden');
   }
 }
