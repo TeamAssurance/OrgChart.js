@@ -20,6 +20,12 @@ gulp.task('cleanCSS', function() {
 gulp.task('cleanJS', function() {
   return del(['build/js']);
 });
+gulp.task('cleanDistCSS', function() {
+  return del(['dist/css']);
+});
+gulp.task('cleanDistJS', function() {
+  return del(['dist/js']);
+});
 
 gulp.task('csslint', function() {
   gulp.src('src/*.css')
@@ -43,6 +49,14 @@ gulp.task('css', ['csslint', 'cleanCSS'], function() {
     .pipe(gulp.dest('demo/css'));
 });
 
+gulp.task('distcss', ['csslint', 'cleanDistCSS'], function() {
+  return gulp.src('src/*.css')
+    .pipe(cleanCSS())
+    .pipe(rename('orgchart.min.css'))
+    .pipe(gulp.dest('dist/css'))
+    .pipe(gulp.dest('demo/css'));
+});
+
 gulp.task('eslint', function () {
   return gulp.src(['src/*.js'])
     .pipe(eslint('.eslintrc.json'))
@@ -60,6 +74,17 @@ gulp.task('js', ['eslint', 'cleanJS'], function () {
     .pipe(rename('orgchart.min.js'))
     .pipe(sourcemaps.write())
     .pipe(gulp.dest('build/js'))
+    .pipe(gulp.dest('demo/js'));
+});
+
+gulp.task('distjs', ['eslint', 'cleanDistJS'], function () {
+  return gulp.src(['src/*.js'])
+    .pipe(babel(
+      {presets: ['es2015']}
+    ))
+    .pipe(uglify())
+    .pipe(rename('orgchart.min.js'))
+    .pipe(gulp.dest('dist/js'))
     .pipe(gulp.dest('demo/js'));
 });
 
@@ -82,6 +107,7 @@ gulp.task('copyVendorAssets', function() {
 });
 
 gulp.task('build', ['css', 'js', 'watch']);
+gulp.task('dist', ['distcss', 'distjs']);
 
 gulp.task('webpack', ['build'], function () {
   webpack(require('./webpack.config.js'), function(err, stats) {
