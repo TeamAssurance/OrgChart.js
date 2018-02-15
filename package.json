@@ -1,8 +1,8 @@
 {
-  "name": "OrgChart.js",
-  "version": "0.0.3",
+  "name": "ta-orgchart",
+  "version": "0.0.1",
   "description": "organization chart plugin based on ES6",
-  "main": "lib/orgchart.js",
+  "main": "index.js",
   "scripts": {},
   "devDependencies": {
     "babel-core": "^6.18.2",
@@ -31,7 +31,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/dabeng/OrgChart.js.git"
+    "url": "https://github.com/DarkKnight1992/OrgChart.js.git"
   },
   "keywords": [
     "es6",
@@ -39,10 +39,10 @@
     "organization chart",
     "tree-like"
   ],
-  "author": "dabeng",
+  "author": "Suraj",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/dabeng/OrgChart.js/issues"
+    "url": "https://github.com/DarkKnight1992/OrgChart.js/issues"
   },
-  "homepage": "https://github.com/dabeng/OrgChart.js"
+  "homepage": "https://github.com/DarkKnight1992/OrgChart.js"
 }
