@@ -243,12 +243,11 @@ export default class OrgChart {
   }
   // whether the cursor is hovering over the node
   _isInAction(node) {
-    let arrow;
+    let arrow = false;
     const edge = node.querySelector(':scope > .edge');
     
     if (edge) {
-      arrow = node.querySelector(':scope > .edge').className.indexOf('fa-') > -1;
-      arrow = node.querySelector(':scope > .edge').className.indexOf('arrow-') > -1;
+      arrow = edge.className.indexOf('fa-') > -1 || edge.className.indexOf(this.options.arrowClasses) > -1;
     }
 
     return arrow;
@@ -352,28 +351,37 @@ export default class OrgChart {
       bottomEdge = node.querySelector(':scope > .bottomEdge'),
       leftEdge = node.querySelector(':scope > .leftEdge'),
       extraClasses = [],
-      topEdgeClasses = null;
+      topEdgeClasses = null, bottomEdgeClasses = null;
 
     if (opts.topEdgeArrow && opts.topEdgeArrow.classes) {
       topEdgeClasses = opts.topEdgeArrow.classes;
       extraClasses = extraClasses.concat([topEdgeClasses.open, topEdgeClasses.close]);
     }
+    if (opts.bottomEdgeArrow && opts.bottomEdgeArrow.classes) {
+      bottomEdgeClasses = opts.bottomEdgeArrow.classes;
+      extraClasses = extraClasses.concat([bottomEdgeClasses.open, bottomEdgeClasses.close]);
+    }
 
     if (event.type === 'mouseenter') {
       if (topEdge) {
         flag = this._getNodeState(node, 'parent').visible;
-        // if (topEdgeClasses) {
-        //   topEdge.classList.toggle(topEdgeClasses.open, !flag);
-        //   topEdge.classList.toggle(topEdgeClasses.close, flag);
-        // } else {
-        topEdge.classList.toggle('fa-chevron-up', !flag);
-        topEdge.classList.toggle('fa-chevron-down', flag);
-        // }
+        if (topEdgeClasses) {
+          topEdge.classList.toggle(topEdgeClasses.open, !flag);
+          topEdge.classList.toggle(topEdgeClasses.close, flag);
+        } else {
+          topEdge.classList.toggle('fa-chevron-up', !flag);
+          topEdge.classList.toggle('fa-chevron-down', flag);
+        }
       }
       if (bottomEdge) {
         flag = this._getNodeState(node, 'children').visible;
-        bottomEdge.classList.toggle('fa-chevron-down', !flag);
-        bottomEdge.classList.toggle('fa-chevron-up', flag);
+        if (bottomEdgeClasses) {
+          bottomEdge.classList.toggle(bottomEdgeClasses.open, !flag);
+          bottomEdge.classList.toggle(bottomEdgeClasses.close, flag);
+        } else {
+          bottomEdge.classList.toggle('fa-chevron-down', !flag);
+          bottomEdge.classList.toggle('fa-chevron-up', flag);
+        }
       }
       if (leftEdge) {
         this._switchHorizontalArrow(node);

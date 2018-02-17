@@ -152,7 +152,14 @@ document.addEventListener('DOMContentLoaded', function () {
         'open': 'arrow-double-up',
         'close': 'arrow-double-down'
       }
-    }
+    },
+    'bottomEdgeArrow': {
+      'class': {
+        'open': 'arrow-double-up',
+        'close': 'arrow-double-down'
+      }
+    },
+    'arrowClasses': 'arrow-'
   });
 
   function closest(el, fn) {
