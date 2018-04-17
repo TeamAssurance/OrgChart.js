@@ -190,7 +190,7 @@ export default class OrgChart {
     return results;
   }
   _getJSON(url) {
-    if(this.options.callAjax){
+    if (this.options.callAjax) {
       return this.options.callAjax(url);
     }
     return new Promise(function (resolve, reject) {
@@ -497,8 +497,8 @@ export default class OrgChart {
     const data = JSON.parse(node.getAttribute('data-source'));
 
     // show the sibling node of parent
-    // if (data.hideParentSiblings) {
-    // }
+    if (data.hideParentSiblings) {
+    }
     // firstly, show the sibling td tags
     let siblings = [],
       temp = this._closest(node, (el) => el.nodeName === 'TABLE').parentNode;
