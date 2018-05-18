@@ -1014,12 +1014,6 @@ export default class OrgChart {
                   if (res.children && res.children.length) res.relationship = '001';
                 });
                 that.addChildren(node, resp);
-                childrenState = that._getNodeState(node, 'children', 'lines');
-                if (childrenState.visible) {
-                  if (toggleLevel) that._removeClass([that.chartContainer], toggleClassLevel);
-                } else { // show the descendants
-                  if (toggleLevel) that._addClass([that.chartContainer], toggleClassLevel);
-                }
               }
             }
             that._endLoading(bottomEdge, node);
@@ -1032,6 +1026,12 @@ export default class OrgChart {
           if (that.chart.dataset.inAjax === 'true') {
             if (resp.children.length) {
               that.addChildren(node, resp);
+              childrenState = that._getNodeState(node, 'children', 'lines');
+              if (childrenState.visible) {
+                if (toggleLevel) that._removeClass([that.chartContainer], toggleClassLevel);
+              } else { // show the descendants
+                if (toggleLevel) that._addClass([that.chartContainer], toggleClassLevel);
+              }
             }
           }
         })
